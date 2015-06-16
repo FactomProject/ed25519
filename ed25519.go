@@ -4,6 +4,8 @@
 
 // Package ed25519 implements the Ed25519 signature algorithm. See
 // http://ed25519.cr.yp.to/.
+
+// Edits copyright 2015 Factom Foundation under the MIT license.
 package ed25519
 
 // This code is a port of the public domain, "ref10" implementation of ed25519
@@ -26,12 +28,24 @@ const (
 // GenerateKey generates a public/private key pair using randomness from rand.
 func GenerateKey(rand io.Reader) (publicKey *[PublicKeySize]byte, privateKey *[PrivateKeySize]byte, err error) {
 	privateKey = new([64]byte)
-	publicKey = new([32]byte)
 	_, err = io.ReadFull(rand, privateKey[:32])
 	if err != nil {
 		return nil, nil, err
 	}
 
+	publicKey = GetPublicKey(privateKey)
+	return
+}
+
+// GetPublicKey returns a public key given a private key.
+// in reference to this diagram http://i.stack.imgur.com/5afWK.png
+// from this site http://crypto.stackexchange.com/questions/3596/is-it-possible-to-pick-your-ed25519-public-key 
+// Pass in a 64 byte slice with seed (k) as the private seed in the 32 MSBytes.
+// The lower 32 bytes are overwritten with the calculated public key (A).
+// The returned value is the same pubkey (A) in a 32 byte wide slice
+func GetPublicKey(privateKey *[PrivateKeySize]byte) (publicKey *[PublicKeySize]byte) {
+	publicKey = new([32]byte)
+	
 	h := sha512.New()
 	h.Write(privateKey[:32])
 	digest := h.Sum(nil)
