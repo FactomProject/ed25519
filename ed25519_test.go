@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"math/big"
 )
 
 type zeroReader struct{}
@@ -101,5 +102,56 @@ func TestGolden(t *testing.T) {
 		if !Verify(&pubKey, msg, sig2) {
 			t.Errorf("signature failed to verify on line %d", lineNo)
 		}
+	}
+}
+
+// see https://github.com/CodesInChaos/Chaos.NaCl/commit/2c861348dc45369508e718aa08611c53b53553db
+
+func TestCanonical(t *testing.T) {
+	var zero zeroReader
+	public, private, _ := GenerateKey(zero)
+	var groupOrder = [32]byte{
+		0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x14, 0xDE, 0xF9, 0xDE, 0xA2, 0xF7, 0x9C, 0xD6, 0x58, 0x12, 0x63, 0x1A, 0x5C, 0xF5, 0xD3, 0xED}
+
+	message := []byte("test message")
+	sig := Sign(private, message)
+	if !VerifyCanonical(public, message, sig) {
+		t.Errorf("valid canonical signature rejected")
+	}
+
+	// convert S from little endian to big endian
+	sValueBigEndian := new([32]byte)
+	for f, b := 0, (SignatureSize-1); f < 32; f, b = f+1, b-1 {
+		sValueBigEndian[f] = sig[b]
+	}
+	// convert values into bignum so math can be done
+	operator := big.NewInt(0)
+	operator.SetBytes(sValueBigEndian[:])
+	order := big.NewInt(0)
+	order.SetBytes(groupOrder[:])
+
+	// according to CodesInChaos in the above link, this should almost
+	// always give a valid sig (tested true with 1 million random sigs).
+	// This part malleates the signature
+	operator = operator.Add(operator, order)
+	malSBigEndian := operator.Bytes()
+	
+	// convert malleated S from big endian back to little endian
+	malSLittleEndian := new([32]byte)
+	for f, b := 0, 31; f < 32; f, b = f+1, b-1 {
+		malSLittleEndian[f] = malSBigEndian[b]
+	}
+	
+	// reconstruct the full signature with R and S
+	malleatedSig := new([64]byte)
+	copy(malleatedSig[:32], sig[:32]) // copy the R value
+	copy(malleatedSig[32:], malSLittleEndian[:32]) // copy the S value
+
+	if !Verify(public, message, malleatedSig) {
+		t.Errorf("non-canonical (malleated) signature did not validate when it normally does (might be ok)")
+	}
+	if VerifyCanonical(public, message, malleatedSig) {
+		t.Errorf("non-canonical (malleated) signature validate when it shouldn't")
 	}
 }

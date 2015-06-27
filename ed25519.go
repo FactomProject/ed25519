@@ -15,6 +15,7 @@ import (
 	"crypto/sha512"
 	"crypto/subtle"
 	"io"
+	"bytes"
 
 	"github.com/FactomProject/ed25519/edwards25519"
 )
@@ -136,4 +137,48 @@ func Verify(publicKey *[PublicKeySize]byte, message []byte, sig *[SignatureSize]
 	var checkR [32]byte
 	R.ToBytes(&checkR)
 	return subtle.ConstantTimeCompare(sig[:32], checkR[:]) == 1
+}
+
+// VerifyCanonical returns true iff sig is valid and it is in the canonical form.
+func VerifyCanonical(publicKey *[PublicKeySize]byte, message []byte, sig *[SignatureSize]byte) bool {
+	if CheckCanonicalSig(sig){
+		return Verify(publicKey, message, sig)
+	}
+	return false
+}
+
+// CheckCanonicalSig takes in an ed25519 signature
+// with R being the first 32 bytes and S being the latter 32 bytes.
+// It returns true if the signature is in the canonical form.
+// This function checks to see if the S value of the signature is below
+// the group order to prevent a malleated signature from
+// being valid even though the Verify() function considers them valid.
+// This is what Ripple does, and the algorithms are borrowed from here:
+// https://github.com/ripple/rippled/blob/develop/src/ripple/protocol/impl/RippleAddress.cpp#L45
+// The NXT community explains the rationale here:
+// https://gist.github.com/doctorevil/9521116#signature-malleability-and-signature-canonicalization
+// https://web.archive.org/web/20140815132834/https://nextcoin.org/index.php/topic,3884.0.html
+// also see: http://crypto.stackexchange.com/questions/14712/non-standard-signature-security-definition-conforming-ed25519-malleability
+// This code may not eliminate all forms of malleability.
+
+func CheckCanonicalSig(sig *[SignatureSize]byte) bool {
+	
+	// The group order is 2^252 + 27742317777372353535851937790883648493 referred to as l
+	// or 7237005577332262213973186563042994240857116359379907606001950938285454250989
+	// or 0x1000000000000000000000000000000014DEF9DEA2F79CD65812631A5CF5D3ED
+	var groupOrder = [32]byte{
+		0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x14, 0xDE, 0xF9, 0xDE, 0xA2, 0xF7, 0x9C, 0xD6, 0x58, 0x12, 0x63, 0x1A, 0x5C, 0xF5, 0xD3, 0xED}
+
+	// convert S from little endian to big endian
+	sValueBigEndian := new([32]byte)
+	for f, b := 0, (SignatureSize-1); f < 32; f, b = f+1, b-1 {
+		sValueBigEndian[f] = sig[b]
+	}
+	// the S value must be lower than the group order l to be canonical
+	if bytes.Compare(sValueBigEndian[:], groupOrder[:]) < 0 {
+		return true
+	}else{
+		return false
+	}
 }
