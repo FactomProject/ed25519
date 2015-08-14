@@ -12,10 +12,10 @@ package ed25519
 // from SUPERCOP.
 
 import (
+	"bytes"
 	"crypto/sha512"
 	"crypto/subtle"
 	"io"
-	"bytes"
 
 	"github.com/FactomProject/ed25519/edwards25519"
 )
@@ -40,13 +40,13 @@ func GenerateKey(rand io.Reader) (publicKey *[PublicKeySize]byte, privateKey *[P
 
 // GetPublicKey returns a public key given a private key.
 // in reference to this diagram http://i.stack.imgur.com/5afWK.png
-// from this site http://crypto.stackexchange.com/questions/3596/is-it-possible-to-pick-your-ed25519-public-key 
+// from this site http://crypto.stackexchange.com/questions/3596/is-it-possible-to-pick-your-ed25519-public-key
 // Pass in a 64 byte slice with seed (k) as the private seed in the 32 MSBytes.
 // The lower 32 bytes are overwritten with the calculated public key (A).
 // The returned value is the same pubkey (A) in a 32 byte wide slice
 func GetPublicKey(privateKey *[PrivateKeySize]byte) (publicKey *[PublicKeySize]byte) {
 	publicKey = new([32]byte)
-	
+
 	h := sha512.New()
 	h.Write(privateKey[:32])
 	digest := h.Sum(nil)
@@ -141,7 +141,7 @@ func Verify(publicKey *[PublicKeySize]byte, message []byte, sig *[SignatureSize]
 
 // VerifyCanonical returns true iff sig is valid and it is in the canonical form.
 func VerifyCanonical(publicKey *[PublicKeySize]byte, message []byte, sig *[SignatureSize]byte) bool {
-	if CheckCanonicalSig(sig){
+	if CheckCanonicalSig(sig) {
 		return Verify(publicKey, message, sig)
 	}
 	return false
@@ -162,7 +162,7 @@ func VerifyCanonical(publicKey *[PublicKeySize]byte, message []byte, sig *[Signa
 // This code may not eliminate all forms of malleability.
 
 func CheckCanonicalSig(sig *[SignatureSize]byte) bool {
-	
+
 	// The group order is 2^252 + 27742317777372353535851937790883648493 referred to as l
 	// or 7237005577332262213973186563042994240857116359379907606001950938285454250989
 	// or 0x1000000000000000000000000000000014DEF9DEA2F79CD65812631A5CF5D3ED
@@ -172,13 +172,13 @@ func CheckCanonicalSig(sig *[SignatureSize]byte) bool {
 
 	// convert S from little endian to big endian
 	sValueBigEndian := new([32]byte)
-	for f, b := 0, (SignatureSize-1); f < 32; f, b = f+1, b-1 {
+	for f, b := 0, (SignatureSize - 1); f < 32; f, b = f+1, b-1 {
 		sValueBigEndian[f] = sig[b]
 	}
 	// the S value must be lower than the group order l to be canonical
 	if bytes.Compare(sValueBigEndian[:], groupOrder[:]) < 0 {
 		return true
-	}else{
+	} else {
 		return false
 	}
 }

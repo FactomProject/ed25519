@@ -10,10 +10,10 @@ import (
 	"compress/gzip"
 	"encoding/hex"
 	"io"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
-	"math/big"
 )
 
 type zeroReader struct{}
@@ -122,7 +122,7 @@ func TestCanonical(t *testing.T) {
 
 	// convert S from little endian to big endian
 	sValueBigEndian := new([32]byte)
-	for f, b := 0, (SignatureSize-1); f < 32; f, b = f+1, b-1 {
+	for f, b := 0, (SignatureSize - 1); f < 32; f, b = f+1, b-1 {
 		sValueBigEndian[f] = sig[b]
 	}
 	// convert values into bignum so math can be done
@@ -136,16 +136,16 @@ func TestCanonical(t *testing.T) {
 	// This part malleates the signature
 	operator = operator.Add(operator, order)
 	malSBigEndian := operator.Bytes()
-	
+
 	// convert malleated S from big endian back to little endian
 	malSLittleEndian := new([32]byte)
 	for f, b := 0, 31; f < 32; f, b = f+1, b-1 {
 		malSLittleEndian[f] = malSBigEndian[b]
 	}
-	
+
 	// reconstruct the full signature with R and S
 	malleatedSig := new([64]byte)
-	copy(malleatedSig[:32], sig[:32]) // copy the R value
+	copy(malleatedSig[:32], sig[:32])              // copy the R value
 	copy(malleatedSig[32:], malSLittleEndian[:32]) // copy the S value
 
 	if !Verify(public, message, malleatedSig) {
